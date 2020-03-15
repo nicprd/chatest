@@ -1,0 +1,25 @@
+We are sending udp packets. 
+We want confirmation of arrival.
+We dont confirm the confirmation.
+Same packet can be send twice until confirm.
+
+-------------------------------------------|
+
+In the Channel we are just sending packets and receiving packets.
+We are not routing them to the aproppiate conversation etc...
+
+So the cannel needs to know for a packet:
+    -Content
+    -To who
+
+The channel should send those packets
+
+The channel should tell status for all packet 
+
+The channel should pop out received packets telling:
+    -Content
+    -from Who
+
+, last_sent_time, last_confirm_time------------------------------------------|
+
+Channel should have a port and no more
