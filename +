@@ -1,0 +1,141 @@
+from socket import * 
+from threading import RLock, Thread
+import time
+
+
+"""
+Hey Hou, 
+We stablish different channels of communication via UDP 
+we do it just for fun
+we dont expect this to be usefull by 
+any means
+"""
+
+#byte encoding
+BYTE_ORDER = 'little'     
+BLOCK_SIZE = 32
+#
+MAX_BUFFER = 10000
+#value into a full block
+FILL_BLOCK = lambda x: x.to_bytes(BLOCK_SIZE,BYTE_ORDER)
+#function used to get the time
+GET_DATE = lambda:int(time.time()*10**7)
+#test checksum in BLOCK_SIZE 
+CHECK_SUM = lambda x : FILL_BLOCK(sum([int(i) for i in x]))
+#this codes are usefull for discerning system msg vs user msg 
+CODE_SYSTEM_MSG = 0x0
+CODE_USER_MSG = 0x1
+
+def LOOPED_F(f):
+    def _f(*args, **kwargs):
+        while True: f(*args, **kwargs)
+    return _f
+        
+
+def build_packet(content,code):
+    _c = FILL_BLOCK(GET_DATE())
+    pl = bytearray(content, 'utf-8')
+    _c += FILL_BLOCK(len(pl))
+    _c += pl
+    return _c, CHECK_SUM(_c)   
+
+class channel:
+    #this is the sending side
+    """
+        Sending a message means put it in a queue { checksum : message }
+        Once we receive the checksum we delete it from the queue
+        Once x times we resend all the messages in the queue
+
+    """
+    
+    def __init__(self, port, ip):
+        self.sent_queue = {} 
+        self.queue_lock = RLock()
+        self.received = [] #only pop and push : atomic ops
+        self.addr = (ip,port,)
+        self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.socket.bind(("",port))
+        self.socket.settimeout(1)
+        #threads that do the main job
+        self.snd_th= Thread(target=lambda: while True:self._send)
+        self.rcv_th= Thread(target=self._clean_queue )
+        #metadata
+        self.success = 0 
+        self.running = False
+    
+    def send(self,msg):
+        #adds a message to the queue
+        _c, _sum =build_packet(msg)    
+        self.sent_queue[_sum] = _c
+    
+    @LOOPED_F 
+    def _send(self):
+        #sends all messages in the queue
+        try:
+            with self.queue_lock:
+                for k,v in self.sent_queue.items(): #copy is done so no need to lock?
+                    self.socket.sendto(v,self.addr)
+        except Exception as e:
+            pass
+    
+    @LOOPED_F
+    def _clean_queue(self):
+        try: 
+            e = self.socket.recv(MAX_BUFFER)
+            with self.queue_lock: #maybe we can acquire the lock just before del
+            #no need for lock????
+                if e in self.sent_queue.keys(): 
+                    del self.sent_queue[e]
+                    self.success +=1
+        except Exception as e:
+            pass
+
+    def start(self):
+        self.rcv_th.start()
+        self.snd_th.start()
+        self.running = True 
+
+    def __repr__(self):
+        return  f"""
+            Channel Object binded at ({self.addr})
+            Running: ({self.running})
+            -Unconfirmed messages: ({len(self.sent_queue)})
+            -Sent messages: ({self.success})
+            """
+            
+           
+class replier:
+    #this is the receiver side
+    def __init__(self, port,ip):
+        self.buffer = []
+        self.messages = [] 
+        self.addr = (ip,port,)
+        self.socket = socket(AF_INET, SOCK_DGRAM)
+        self.socket.bind(("",port))
+    
+    @LOOPED_F
+    def listen(self): 
+        try:
+            msg,addr = self.socket.recvfrom(MAX_BUFFER)
+            print(f"msg received {msg}")
+            if self.confirm(msg,addr): 
+                self.messages.append((msg,addr))
+        except Exception as e:
+            pass
+
+    def confirm(self, msg,addr):
+        chk = CHECK_SUM(msg)
+        self.socket.sendto(chk,addr)
+        print("Message sent")
+        if chk in self.buffer: return False
+        self.buffer.append(chk)
+        return True 
+        
+    
+
+
+
+
+
+
+ 
