@@ -18,13 +18,13 @@ def DO_FOREVER(f):
 def PASS_EXCEP(f):
     def _f(*args, **kwargs):
         try: 
-            f(*args, **kwargs)
+            return f(*args, **kwargs)
         except Exception as e:
             pass
     return _f
 
 def LOG_CALL(f):
     def _f(*args, **kwargs):
-        f(*args, **kwargs)
+        return f(*args, **kwargs)
         LOG("Called", f"function {f.__name__}, with args {args[1:]}")
     return _f
