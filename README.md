@@ -37,7 +37,7 @@ Gives orders to send them.
 So thats pretty much it. 
 
 Channel runs it own threads.  
-One lock is used for know without much care.Think should be put in thread safety and minimizing lock number. It will be desirable to communicate threads by using atomic operations on share objects.
+One lock is used for now without much care.Think should be put in thread safety and minimizing lock number. It will be desirable to communicate threads by using atomic operations on share objects.
 
 Working silly test at chatest_test.  
 I have no idea about making user interfaces.
