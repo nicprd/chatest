@@ -1,7 +1,7 @@
 import datetime
 #decorators that happen to be usefull
 
-DEFAULT_PORT = 5777
+DEFAULT_PORT = 5667
 
 LOG_STR = lambda event, x="" : (f"{datetime.datetime.now()} [{event}] "+x+"\n")
 if __name__ != "__main__":

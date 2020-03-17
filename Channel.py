@@ -2,7 +2,7 @@ from socket import *
 from threading import RLock, Thread
 import time
 import datetime
-#
+
 from utils import *
 from PacketParser import *
 
@@ -18,24 +18,17 @@ class Channel:
     """
     
     def __init__(self, port=DEFAULT_PORT):
-        "Only append lists"
-        #Contains list of all messages that are sent
+        
+		#Contains list of all messages 
         self.out_messages  = {} #  chk: (addr,msg)
-        #Contains list of all ack received 
+        #Contains list of all msg with time of exit and of reception 
         self.ack_messages  = {} #  chk: [time_exit, time_ack] 0:notack -1:dropped
         #Contatins messages that have been dropped
         self.drop_messages = {} # chk: time_last_attempt
-        "pop and push lists. Workspace"
-        #this are the checksums of messages that should go out
+		#this are the checksums of messages that should go out
         self.out_queue = {} # chk: time_last_attempt
-        #this are the ack received awaiting to be processed.
-        "Only append"
-        #messages received 
-        self.received_chk = []
-        "push and pop"
-        #content of message received
         
-        self.in_messages = {} #chk: (addr,msg) #breaks simmetry... 
+        self.in_messages = {} #chk: (addr,msg) 
         self.in_ack = {} #chk: time_entry  
         self.in_queue = [] #chk
         
@@ -45,15 +38,14 @@ class Channel:
         self.socket.bind(("",port))
         self.socket.settimeout(0)
         
-        #threads that do the main job
         self.main_th = Thread(target=self.main_loop)
     
     is_running = lambda self: self.main_th.is_alive()
     get_out_t = lambda self,chk: self.ack_messages[chk][0]
     get_ack_t = lambda self,chk: self.ack_messages[chk][1]
     get_out_msg = lambda self, chk: self.out_messages[chk]
-    get_in_msg = lambda self, chk: self.in_messages[chk]
     get_in_t = lambda self, chk: self.in_ack[chk] 
+    get_in_msg = lambda self, chk: self.in_messages[chk]                        
     pop_in_msg = lambda self:self.in_queue.pop() if self.in_queue else None
     
 
@@ -68,10 +60,14 @@ class Channel:
         self.out_messages[chk] = (addr,content)
         self.ack_messages[chk] = [t, 0]
         self.out_queue[chk] = 0
+
     
     def _send_message(self, chk):
         msg = self.out_messages[chk]
-        self.socket.sendto(msg[1],(msg[0],self.port))
+        try:
+            self.socket.sendto(msg[1],(msg[0],self.port))
+        except BlockingIOError as e:
+            pass
         self.out_queue[chk] = time.time()
 
     def _drop_message(self, chk):
@@ -120,6 +116,7 @@ class Channel:
             return False
         return True
     
+    @LOG_CALL
     def main_loop(self):
         while True:
             self._send_queue()
@@ -128,8 +125,10 @@ class Channel:
     @LOG_CALL
     def confirm(self, msg, chk, addr):
         r, _ = build_packet(chk,CODE_SYSTEM_MSG)
-        self.socket.sendto(r,addr)
-    
+        try:
+            self.socket.sendto(r,addr)
+        except BlockingIOError:
+            pass
 
     @LOG_CALL 
     def start(self): self.main_th.start()

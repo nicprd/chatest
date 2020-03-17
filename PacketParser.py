@@ -29,8 +29,9 @@ def build_packet(content,code):
     return _c, CHECK_SUM(_c)   
 
 def get_time(packet):
-    t = packet[1:BLOCK_SIZE]
+    t = packet[1:BLOCK_SIZE+1]
     time = int.from_bytes(t,BYTE_ORDER)/10**7
+    return time
 
 def get_content(packet):
     c = packet[CONTENT_START:]
