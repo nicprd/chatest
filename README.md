@@ -5,43 +5,40 @@ Chatest is a test for a chat and a chat for a test.
 UDP p2p.
 
 Behind a NAT:
-Going to the outside world requires sending a packet to the ip:port you expect to receive from that same port.
+Receiving from the outside world requires sending a packet to the ip:port you expect to receive, and from that same port.
 
 What do we do here?
 
 See Channel.py? 
 
-Receives a message to send towards an address.
-Calculates a checksum [now its a stupid sum. TODO:md5] and creates a packet
-That same channel stores {cheksum : (addr,content)}
-Also stores {checksum : time_it_went_out, time_reception_was_ack} (0 is not yet, -1 taken as lost)
-c
-heksum is sent to a queue. 
-that queue is { chk : time_last_sent }
-Messages are sent each 0.3 seconds until ack or timeout.  
+First of all sends messages out.
 
-Easy to imaging the receiving side that is in the same socket, and implemented in the same object. REMEMBER WE ARE BEHIND NAT.
+Calculates a checksum (now its a stupid sum, TODO:md5) and creates a packet.
+Stores {cheksum : (addr,content)}
+Stores {checksum : time_it_went_out, time_reception_was_ack} (0 is not yet, -1 taken as lost).
+Cheksum is sent to a queue {chk : time_last_sent }
+Messages are sent each 0.3 seconds until ack or timeout; then removed from the queue.
 
-We receive a message, send ACK and store it in:
+Second of all gets messages in. (REMEMBER WE ARE BEHIND NAT)
 
-{chk : (addr,content)}
-
-Also we store {chk: received_time} 
-
-we store the checksum in a queue where messages are popped.
-
+We receive a message, send ACK and store it in: {chk : (addr,content)}
+Stores {chk: received_time} 
+Push the checksum in a queue where messages are popped in demand.
 
 See Router.py?
 
-Router class interacts with a channel. 
+Router class interacts with a channel, keeping a track of conversations with an address.
 
-The idea is to keep a track of conversations with a same address,
-receive incoming messages,
-query the channel for the status of messages,
-and give orders to send them.
+Gets new messages and stores them in the aproppiate conversation:
+{ addr : [ [sent_packet_checkhums], [received_packet_checksums]]}
+Queries the channel about the status of messages,
+Gives orders to send them.
 
-So thats pretty much it.
+So thats pretty much it. 
 
+Channel runs it own threads.
+No lock is used, but tried to keep all operations atomic. 
+ 
 
 
 
