@@ -28,6 +28,8 @@ class Channel:
 		#this are the checksums of messages that should go out
         self.out_queue = {} # chk: time_last_attempt
         
+        self.push_out_lock = RLock() 
+
         self.in_messages = {} #chk: (addr,msg) 
         self.in_ack = {} #chk: time_entry  
         self.in_queue = [] #chk
@@ -39,6 +41,7 @@ class Channel:
         self.socket.settimeout(0)
         
         self.main_th = Thread(target=self.main_loop)
+        self.lastException = None
     
     is_running = lambda self: self.main_th.is_alive()
     get_out_t = lambda self,chk: self.ack_messages[chk][0]
@@ -56,33 +59,35 @@ class Channel:
         return chk
     
     def _push_out(self,chk, addr, content):
-        t = time.time()
-        self.out_messages[chk] = (addr,content)
-        self.ack_messages[chk] = [t, 0]
-        self.out_queue[chk] = 0
+        with self.push_out_lock:
+            t = time.time()
+            self.out_messages[chk] = (addr,content)
+            self.ack_messages[chk] = [t, 0]
+            self.out_queue[chk] = 0
 
     
     def _send_message(self, chk):
         msg = self.out_messages[chk]
+        self.out_queue[chk] = time.time()
         try:
             self.socket.sendto(msg[1],(msg[0],self.port))
         except BlockingIOError as e:
             pass
-        self.out_queue[chk] = time.time()
 
     def _drop_message(self, chk):
         t = self.out_queue[chk]
         self.drop_messages[chk] = t
         del self.out_queue[chk]
-        self.out_messages[chk] = -1
+        self.ack_messages[chk][1] = -1
 
     def _send_queue(self):
-        t = time.time()
-        drop_m = []
-        for k,v in self.out_queue.items():
-            if (self.get_out_t(k) + TIMEOUT) < t: drop_m.append(k)
-            elif v < (t + RETRY_LAPSE): self._send_message(k)
-        for k in drop_m: self._drop_message(k)
+        with self.push_out_lock:
+            t = time.time()
+            drop_m = []
+            for k,v in self.out_queue.items():
+                if (self.get_out_t(k) + TIMEOUT) < t: drop_m.append(k)
+                elif v < (t + RETRY_LAPSE): self._send_message(k)
+            for k in drop_m: self._drop_message(k)
     
     def receive(self):
         try:
@@ -118,9 +123,12 @@ class Channel:
     
     @LOG_CALL
     def main_loop(self):
+       try:
         while True:
             self._send_queue()
             self.receive()
+       except Exception as e:
+            self.lastException = e
 
     @LOG_CALL
     def confirm(self, msg, chk, addr):
