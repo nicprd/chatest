@@ -31,7 +31,8 @@ class Router:
         
     def get_out_msg(self, chk):
         packet = self.channel.get_out_msg(chk)[1]
-        sent_t, ack_t = self.channel.ack_messages[chk]
+        sent_t = self.channel.get_out_t(chk)
+        ack_t = self.channel.get_ack_t(chk)
         return (PacketParser.get_content(packet), sent_t, ack_t)
 
     def get_in_msg(self,chk):

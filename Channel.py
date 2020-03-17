@@ -1,4 +1,4 @@
-from socket import * 
+from socket import socket, AF_INET, SOCK_DGRAM
 from threading import RLock, Thread
 import time
 import datetime
@@ -7,34 +7,23 @@ from utils import *
 from PacketParser import *
 
 class Channel:
-    """
-        Sending a message means put it in a queue { checksum : message }
-        Once we receive the checksum we delete it from the queue
-        Once x times we resend all the messages in the queue
-        Once we receive a msg we send the checksum back
-
-        USER_MSGS Are the chat content we received
-        SYSTEM_MSGS contains only the confirmation checksum of reception
-    """
     
     def __init__(self, port=DEFAULT_PORT):
         
 		#Contains list of all messages 
-        self.out_messages  = {} #  chk: (addr,msg)
+        self.out_contents  = {} #  chk: (addr,msg)
         #Contains list of all msg with time of exit and of reception 
-        self.ack_messages  = {} #  chk: [time_exit, time_ack] 0:notack -1:dropped
+        self.out_dates  = {} #  chk: [time_exit, time_ack] 0:notack -1:dropped
         #Contatins messages that have been dropped
-        self.drop_messages = {} # chk: time_last_attempt
+        self.out_drops = {} # chk: time_last_attempt
 		#this are the checksums of messages that should go out
         self.out_queue = {} # chk: time_last_attempt
-        
-        self.push_out_lock = RLock() 
+        self.out_queue_rlock = RLock() 
 
-        self.in_messages = {} #chk: (addr,msg) 
-        self.in_ack = {} #chk: time_entry  
+        self.in_contents = {} #chk: (addr,msg) 
+        self.in_dates = {} #chk: time_entry  
         self.in_queue = [] #chk
         
-        #online status
         self.port = port
         self.socket = socket(AF_INET, SOCK_DGRAM)
         self.socket.bind(("",port))
@@ -43,14 +32,15 @@ class Channel:
         self.main_th = Thread(target=self.main_loop)
         self.lastException = None
     
-    is_running = lambda self: self.main_th.is_alive()
-    get_out_t = lambda self,chk: self.ack_messages[chk][0]
-    get_ack_t = lambda self,chk: self.ack_messages[chk][1]
-    get_out_msg = lambda self, chk: self.out_messages[chk]
-    get_in_t = lambda self, chk: self.in_ack[chk] 
-    get_in_msg = lambda self, chk: self.in_messages[chk]                        
-    pop_in_msg = lambda self:self.in_queue.pop() if self.in_queue else None
-    
+    def get_out_msg(self, chk): return self.out_contents[chk]
+    def get_out_t(self,chk): return self.out_dates[chk][0]
+    def get_ack_t(self,chk): return self.out_dates[chk][1]
+    def get_in_msg(self, chk): return self.in_contents[chk] 
+    def get_in_t(self,chk): return self.in_dates[chk]                    
+    def pop_in_msg(self): return self.in_queue.pop() if self.in_queue  else  None
+    def push_to_queue(self,chk,t): 
+        with self.out_queue_rlock: self.out_queue[chk] = t 
+    def is_running(self): return self.main_th.is_alive()
 
     @LOG_CALL
     def send(self,msg,addr):
@@ -59,35 +49,32 @@ class Channel:
         return chk
     
     def _push_out(self,chk, addr, content):
-        with self.push_out_lock:
-            t = time.time()
-            self.out_messages[chk] = (addr,content)
-            self.ack_messages[chk] = [t, 0]
-            self.out_queue[chk] = 0
-
+        t = time.time()
+        self.out_contents[chk] = (addr,content)
+        self.out_dates[chk] = [t, 0]
+        self.push_to_queue(chk,0)
     
     def _send_message(self, chk):
-        msg = self.out_messages[chk]
+        msg = self.out_contents[chk]
         self.out_queue[chk] = time.time()
         try:
             self.socket.sendto(msg[1],(msg[0],self.port))
-        except BlockingIOError as e:
-            pass
+        except BlockingIOError: pass
 
     def _drop_message(self, chk):
         t = self.out_queue[chk]
-        self.drop_messages[chk] = t
+        self.out_drops[chk] = t
         del self.out_queue[chk]
-        self.ack_messages[chk][1] = -1
+        self.out_dates[chk][1] = -1
 
     def _send_queue(self):
-        with self.push_out_lock:
-            t = time.time()
-            drop_m = []
+        t = time.time()
+        drop_m = []
+        with self.out_queue_rlock:
             for k,v in self.out_queue.items():
                 if (self.get_out_t(k) + TIMEOUT) < t: drop_m.append(k)
                 elif v < (t + RETRY_LAPSE): self._send_message(k)
-            for k in drop_m: self._drop_message(k)
+        for k in drop_m: self._drop_message(k)
     
     def receive(self):
         try:
@@ -106,18 +93,18 @@ class Channel:
     def ack_checksum(self, chk):
         t = time.time()
         del self.out_queue[chk]
-        self.ack_messages[chk][1] = t
+        self.out_dates[chk][1] = t
 
     @LOG_CALL
     def add_new_msg(self, msg, chk, addr):
         t = time.time()
-        self.in_messages[chk] = (addr[0],msg) #!!!! BE CAREFULL
+        self.in_contents[chk] = (addr[0],msg) #!!!! BE CAREFULL
         self.in_queue.append(chk)
-        self.in_ack[chk] = t
+        self.in_dates[chk] = t
 
     @LOG_CALL
     def is_new_msg(self,chk):
-        if chk in self.in_messages.keys(): 
+        if chk in self.in_contents.keys(): 
             return False
         return True
     
