@@ -34,7 +34,7 @@ while True:
     feed = feed[:15]
     feed.reverse()
     os.system("clear")
-    for i in feed[:15]: print(display_message(i)) 
+    for i in feed: print(display_message(i)) 
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print(f"Updated on {time.time()} Press Enter to update or send a message")
     message = input("send a message:")
