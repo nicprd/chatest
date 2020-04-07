@@ -15,7 +15,6 @@ except IndexError:
     print("Like: python3.8 chatest_test.py 216.239.34.117")
     exit(-1)
 
-
 def display_message(elem):
     block = "___________________\n"
     if elem[0]: block += f"[Sent] at: {DATE(elem[1][1])} arrived at: {DATE(elem[1][2])}\n"
@@ -30,19 +29,21 @@ audioHandler = AudioHandler()
 
 
 while True:
+
     if not channel.is_running(): raise channel.lastException
     
-    for i in range(1): router.update_conversations()
+    router.update_conversations()
 
     recv = []
-    while (msg:=router.pop_out_msg(addr)): recv.append(msg)
+    while (msg:=router.pop_out_msg(addr)): 
+        recv.append(router.get_out_msg(msg))
     
-    recv = [ (False,router.get_out_msg(i)) for i in recv]
+    feed = sorted(recv, key=lambda x: x[2], reverse=True)
     
-    feed = sorted(recv, key=lambda x: x[1][2], reverse=True)
-    feed = [i for ___,(i,_,__) in feed]
-    for i in feed: audioHandler.play_audio(i)
+    for i,_,__ in feed: audioHandler.play_audio(i)
+    
     os.system("clear")
+ 
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
     print(f"Updated on {DATE(time.time())} Press Enter to update or send a message")
     
