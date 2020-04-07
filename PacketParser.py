@@ -35,7 +35,7 @@ def get_time(packet):
 
 def get_content(packet):
     c = packet[CONTENT_START:]
-    return c.decode('utf-8')
+    return c
 
     
 
