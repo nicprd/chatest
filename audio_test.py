@@ -4,15 +4,20 @@ import sys
 import os
 import datetime
 import time
+import requests
 from AudioHandler import AudioHandler
 
 DATE = lambda x: datetime.datetime.fromtimestamp(int(x)) if x > 0 else "NOT YET" if x==0 else "NEVER"
+
 
 try:
     addr = sys.argv[1]
 except IndexError:
     print("Error, fisrt argument must be peer ip")
     print("Like: python3.8 chatest_test.py 216.239.34.117")
+    #displays ip
+    myip=requests.get("https://ifconfig.me").content.decode('utf-8')
+    print(f"by the way, your ip is: {myip}. Tell it to your friend")
     exit(-1)
 
 def display_message(elem):
@@ -45,7 +50,9 @@ while True:
     os.system("clear")
  
     print("~~~~~~~~~~~~~~~~~~~~~~~~~~~~")
-    print(f"Updated on {DATE(time.time())} Press Enter to update or send a message")
+    print(f"Chatting with {addr}")
+    print(f"Updated on {DATE(time.time())}") 
+    
     
     router.send(audioHandler.get_audio(),addr)
     
