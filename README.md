@@ -7,9 +7,4 @@ UDP p2p.
 Behind a NAT:
 Receiving from the outside world requires sending a packet to the ip:port you expect to receive, and from that same port.
 
-What do we do here?
-
-See Channel.py? 
-
-
 
